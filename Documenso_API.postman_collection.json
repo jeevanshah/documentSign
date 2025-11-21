@@ -1,0 +1,265 @@
+{
+  "info": {
+    "name": "Documenso API",
+    "description": "API collection for Documenso document signing",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "api_zp6muo4z1s7dalie",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "documentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "uploadUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "recipientId",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "1. Create Document (Get Upload URL)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const response = pm.response.json();",
+                  "pm.collectionVariables.set('documentId', response.documentId);",
+                  "pm.collectionVariables.set('uploadUrl', response.uploadUrl);",
+                  "pm.collectionVariables.set('recipientId', response.recipients[0].recipientId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Test Contract\",\n  \"recipients\": [\n    {\n      \"email\": \"signer@example.com\",\n      \"name\": \"John Doe\",\n      \"role\": \"SIGNER\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/documents",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "documents"]
+            }
+          }
+        },
+        {
+          "name": "2. Upload PDF (Use uploadUrl from Step 1)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/pdf"
+              }
+            ],
+            "body": {
+              "mode": "file",
+              "file": {
+                "src": ""
+              }
+            },
+            "url": {
+              "raw": "{{uploadUrl}}",
+              "host": ["{{uploadUrl}}"]
+            }
+          }
+        },
+        {
+          "name": "3. Add Signature Fields",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"recipientId\": {{recipientId}},\n    \"type\": \"SIGNATURE\",\n    \"pageNumber\": 1,\n    \"pageX\": 100,\n    \"pageY\": 500,\n    \"pageWidth\": 200,\n    \"pageHeight\": 60,\n    \"fieldMeta\": {\n      \"type\": \"signature\",\n      \"label\": \"Signature\",\n      \"required\": true\n    }\n  },\n  {\n    \"recipientId\": {{recipientId}},\n    \"type\": \"DATE\",\n    \"pageNumber\": 1,\n    \"pageX\": 100,\n    \"pageY\": 400,\n    \"pageWidth\": 150,\n    \"pageHeight\": 30,\n    \"fieldMeta\": {\n      \"type\": \"date\",\n      \"label\": \"Date\",\n      \"required\": true\n    }\n  }\n]"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/documents/{{documentId}}/fields",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "documents", "{{documentId}}", "fields"]
+            }
+          }
+        },
+        {
+          "name": "4. Send Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sendEmail\": false\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/documents/{{documentId}}/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "documents", "{{documentId}}", "send"]
+            }
+          }
+        },
+        {
+          "name": "Get All Documents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/documents",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "documents"]
+            }
+          }
+        },
+        {
+          "name": "Get Document by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/documents/:documentId",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "documents", ":documentId"],
+              "variable": [
+                {
+                  "key": "documentId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Send Document",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/documents/:documentId/send",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "documents", ":documentId", "send"],
+              "variable": [
+                {
+                  "key": "documentId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Document with Multiple Signatures",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Multi-Signature Contract\",\n  \"recipients\": [\n    {\n      \"email\": \"client@example.com\",\n      \"name\": \"Client Name\",\n      \"role\": \"SIGNER\"\n    },\n    {\n      \"email\": \"witness@example.com\",\n      \"name\": \"Witness Name\",\n      \"role\": \"SIGNER\"\n    }\n  ],\n  \"file\": {\n    \"name\": \"contract.pdf\",\n    \"content\": \"BASE64_ENCODED_PDF_HERE\"\n  },\n  \"fields\": [\n    {\n      \"type\": \"SIGNATURE\",\n      \"page\": 0,\n      \"x\": 100,\n      \"y\": 600,\n      \"width\": 200,\n      \"height\": 60,\n      \"recipientId\": 0\n    },\n    {\n      \"type\": \"DATE\",\n      \"page\": 0,\n      \"x\": 320,\n      \"y\": 600,\n      \"width\": 150,\n      \"height\": 40,\n      \"recipientId\": 0\n    },\n    {\n      \"type\": \"SIGNATURE\",\n      \"page\": 0,\n      \"x\": 100,\n      \"y\": 500,\n      \"width\": 200,\n      \"height\": 60,\n      \"recipientId\": 1\n    },\n    {\n      \"type\": \"NAME\",\n      \"page\": 0,\n      \"x\": 100,\n      \"y\": 450,\n      \"width\": 200,\n      \"height\": 30,\n      \"recipientId\": 0\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/documents",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "documents"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Templates",
+      "item": [
+        {
+          "name": "Create Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Contract Template\",\n  \"file\": {\n    \"name\": \"template.pdf\",\n    \"content\": \"BASE64_ENCODED_PDF_HERE\"\n  },\n  \"fields\": [\n    {\n      \"type\": \"SIGNATURE\",\n      \"page\": 0,\n      \"x\": 100,\n      \"y\": 200,\n      \"width\": 200,\n      \"height\": 50,\n      \"recipientRole\": \"Signer\"\n    },\n    {\n      \"type\": \"DATE\",\n      \"page\": 0,\n      \"x\": 100,\n      \"y\": 300,\n      \"width\": 150,\n      \"height\": 30,\n      \"recipientRole\": \"Signer\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "http://localhost:3000/api/v1/templates",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "templates"]
+            }
+          }
+        },
+        {
+          "name": "Get All Templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:3000/api/v1/templates",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "3000",
+              "path": ["api", "v1", "templates"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

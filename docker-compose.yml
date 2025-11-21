@@ -1,0 +1,119 @@
+services:
+  documenso:
+    image: documenso/documenso:latest
+    container_name: documenso-app
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PRIVATE_DATABASE_URL=postgresql://documenso:documenso@postgres:5432/documenso
+      - NEXT_PRIVATE_DIRECT_DATABASE_URL=postgresql://documenso:documenso@postgres:5432/documenso
+      - NEXTAUTH_URL=http://localhost:3000
+      - NEXTAUTH_SECRET=secret-change-this-in-production
+      - NEXT_PRIVATE_ENCRYPTION_KEY=encryption-key-change-this
+      - NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY=secondary-key-change-this
+      - NEXT_PRIVATE_SMTP_FROM_ADDRESS=docsign@churchill.nsw.edu.au
+      - NEXT_PRIVATE_SMTP_FROM_NAME=Churchill Document Signing
+      - NEXT_PUBLIC_WEBAPP_URL=http://localhost:3000
+      - NEXT_PRIVATE_SIGNING_TRANSPORT=local
+      - NEXT_PUBLIC_DISABLE_SIGNUP=false
+      - NEXT_PRIVATE_DISABLE_EMAIL_VERIFICATION=false
+      
+      # Microsoft 365 SMTP (MFA disabled, using regular password)
+      - NEXT_PRIVATE_SMTP_TRANSPORT=smtp-auth
+      - NEXT_PRIVATE_SMTP_HOST=smtp.office365.com
+      - NEXT_PRIVATE_SMTP_PORT=587
+      - NEXT_PRIVATE_SMTP_SECURE=false
+      - NEXT_PRIVATE_SMTP_USERNAME=docsign@churchill.nsw.edu.au
+      - NEXT_PRIVATE_SMTP_PASSWORD=Together@1431
+      
+      # OPTION 2: SendGrid (comment out Gmail above if using this)
+      # - NEXT_PRIVATE_SMTP_TRANSPORT=smtp-api
+      # - NEXT_PRIVATE_SMTP_HOST=smtp.sendgrid.net
+      # - NEXT_PRIVATE_SMTP_PORT=587
+      # - NEXT_PRIVATE_SMTP_APIKEY_USER=apikey
+      # - NEXT_PRIVATE_SMTP_APIKEY=your-sendgrid-api-key
+      
+      # OPTION 3: Resend (comment out others if using this)
+      # - NEXT_PRIVATE_SMTP_TRANSPORT=resend
+      # - NEXT_PRIVATE_RESEND_API_KEY=your-resend-api-key
+      
+      # OPTION 4: AWS SES (comment out others if using this)
+      # - NEXT_PRIVATE_SMTP_TRANSPORT=smtp-auth
+      # - NEXT_PRIVATE_SMTP_HOST=email-smtp.us-east-1.amazonaws.com
+      # - NEXT_PRIVATE_SMTP_PORT=587
+      # - NEXT_PRIVATE_SMTP_SECURE=false
+      # - NEXT_PRIVATE_SMTP_USERNAME=your-ses-smtp-username
+      # - NEXT_PRIVATE_SMTP_PASSWORD=your-ses-smtp-password
+      - NEXT_PUBLIC_UPLOAD_TRANSPORT=s3
+      - NEXT_PRIVATE_UPLOAD_TRANSPORT=s3
+      - NEXT_PRIVATE_UPLOAD_ENDPOINT=http://minio:9000
+      - NEXT_PRIVATE_UPLOAD_REGION=us-east-1
+      - NEXT_PRIVATE_UPLOAD_BUCKET=documenso
+      - NEXT_PRIVATE_UPLOAD_ACCESS_KEY_ID=minioadmin
+      - NEXT_PRIVATE_UPLOAD_SECRET_ACCESS_KEY=minioadmin
+      - NEXT_PRIVATE_UPLOAD_FORCE_PATH_STYLE=true
+    depends_on:
+      - postgres
+      - minio
+    networks:
+      - documenso-network
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: documenso-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - documenso-network
+    restart: unless-stopped
+
+  minio-setup:
+    image: minio/mc:latest
+    container_name: documenso-minio-setup
+    depends_on:
+      - minio
+    networks:
+      - documenso-network
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb myminio/documenso --ignore-existing;
+      mc anonymous set public myminio/documenso;
+      exit 0;
+      "
+    restart: "no"
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: documenso-postgres
+    environment:
+      - POSTGRES_USER=documenso
+      - POSTGRES_PASSWORD=documenso
+      - POSTGRES_DB=documenso
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - documenso-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U documenso"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  documenso-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  minio_data:
