@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Coordinate Finder</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        .controls input {
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .controls button {
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .controls button:hover {
+            background: #0056b3;
+        }
+        .info-panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #e7f3ff;
+            border-left: 4px solid #007bff;
+            border-radius: 4px;
+        }
+        .coordinate-display {
+            font-size: 18px;
+            font-weight: bold;
+            color: #007bff;
+            margin: 10px 0;
+        }
+        .canvas-container {
+            position: relative;
+            display: inline-block;
+            border: 2px solid #ddd;
+            margin-top: 10px;
+        }
+        canvas {
+            display: block;
+            cursor: crosshair;
+        }
+        .page-controls {
+            margin-top: 10px;
+            text-align: center;
+        }
+        .page-controls button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .page-controls button:hover {
+            background: #545b62;
+        }
+        .page-controls button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .marker {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: red;
+            border: 2px solid white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        .history {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 5px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .history h3 {
+            margin-top: 0;
+        }
+        .history-item {
+            padding: 5px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📍 PDF Coordinate Finder</h1>
+        
+        <div class="controls">
+            <input type="file" id="pdfFile" accept=".pdf">
+            <span style="margin-left: 20px; color: #666;">Click anywhere on the PDF to get coordinates</span>
+        </div>
+
+        <div class="info-panel">
+            <div>📄 <strong>Current Page:</strong> <span id="currentPage">-</span> of <span id="totalPages">-</span></div>
+            <div class="coordinate-display">
+                📌 X: <span id="coordX">-</span> | Y: <span id="coordY">-</span>
+            </div>
+            <div style="font-size: 12px; color: #666; margin-top: 5px;">
+                💡 Tip: Y coordinate starts from BOTTOM of page (Documenso uses bottom-left origin)
+            </div>
+        </div>
+
+        <div class="canvas-container" id="canvasContainer">
+            <canvas id="pdfCanvas"></canvas>
+        </div>
+
+        <div class="page-controls">
+            <button id="prevPage" disabled>← Previous Page</button>
+            <button id="nextPage" disabled>Next Page →</button>
+        </div>
+
+        <div class="history">
+            <h3>📋 Click History</h3>
+            <div id="historyList">No clicks yet</div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        let pdfDoc = null;
+        let currentPage = 1;
+        let pageRendering = false;
+        let clickHistory = [];
+
+        const canvas = document.getElementById('pdfCanvas');
+        const ctx = canvas.getContext('2d');
+        const canvasContainer = document.getElementById('canvasContainer');
+
+        document.getElementById('pdfFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file.type !== 'application/pdf') {
+                alert('Please select a PDF file');
+                return;
+            }
+
+            const fileReader = new FileReader();
+            fileReader.onload = function() {
+                const typedarray = new Uint8Array(this.result);
+                
+                pdfjsLib.getDocument(typedarray).promise.then(function(pdf) {
+                    pdfDoc = pdf;
+                    document.getElementById('totalPages').textContent = pdf.numPages;
+                    document.getElementById('prevPage').disabled = false;
+                    document.getElementById('nextPage').disabled = false;
+                    renderPage(1);
+                });
+            };
+            fileReader.readAsArrayBuffer(file);
+        });
+
+        function renderPage(num) {
+            pageRendering = true;
+            currentPage = num;
+            document.getElementById('currentPage').textContent = num;
+
+            pdfDoc.getPage(num).then(function(page) {
+                const viewport = page.getViewport({scale: 1.5});
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                // Clear any existing markers
+                const markers = canvasContainer.querySelectorAll('.marker');
+                markers.forEach(m => m.remove());
+
+                const renderContext = {
+                    canvasContext: ctx,
+                    viewport: viewport
+                };
+
+                page.render(renderContext).promise.then(function() {
+                    pageRendering = false;
+                });
+            });
+        }
+
+        canvas.addEventListener('click', function(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.round(e.clientX - rect.left);
+            const y = Math.round(e.clientY - rect.top);
+            
+            // Convert Y to bottom-origin (Documenso coordinate system)
+            const documensoY = Math.round(canvas.height - y);
+            
+            // Update display
+            document.getElementById('coordX').textContent = x;
+            document.getElementById('coordY').textContent = documensoY;
+
+            // Add marker
+            const marker = document.createElement('div');
+            marker.className = 'marker';
+            marker.style.left = (e.clientX - rect.left) + 'px';
+            marker.style.top = (e.clientY - rect.top) + 'px';
+            canvasContainer.appendChild(marker);
+
+            // Add to history
+            const historyItem = {
+                page: currentPage,
+                x: x,
+                y: documensoY,
+                time: new Date().toLocaleTimeString()
+            };
+            clickHistory.unshift(historyItem);
+            updateHistory();
+
+            // Copy to clipboard
+            const coordText = `pageX: ${x}, pageY: ${documensoY}, pageNumber: ${currentPage}`;
+            navigator.clipboard.writeText(coordText).then(() => {
+                console.log('Coordinates copied to clipboard!');
+            });
+        });
+
+        function updateHistory() {
+            const historyList = document.getElementById('historyList');
+            if (clickHistory.length === 0) {
+                historyList.innerHTML = 'No clicks yet';
+                return;
+            }
+
+            historyList.innerHTML = clickHistory.slice(0, 10).map(item => 
+                `<div class="history-item">
+                    Page ${item.page}: pageX: ${item.x}, pageY: ${item.y} (${item.time})
+                </div>`
+            ).join('');
+        }
+
+        document.getElementById('prevPage').addEventListener('click', function() {
+            if (currentPage <= 1) return;
+            renderPage(currentPage - 1);
+        });
+
+        document.getElementById('nextPage').addEventListener('click', function() {
+            if (currentPage >= pdfDoc.numPages) return;
+            renderPage(currentPage + 1);
+        });
+    </script>
+</body>
+</html>
